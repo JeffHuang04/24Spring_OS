@@ -1,0 +1,252 @@
+     1                                  
+     2                                  section .data
+     3 00000000 0000000000000000-           inputnum: times 35 dq 0; 输入数字内容（数据范围是10^30）
+     3 00000000 <rep 23h>          
+     4 00000118 0000000000000000            numlen: dq 0; 输入数字长度
+     5 00000120 0000000000000000            inputbase: dq 0; 输入数字进制
+     6 00000128 0000000000000000            outputbase: dq 0; 输出进制标识
+     7 00000130 0000000000000000            tmp: dq 0; 输入输出的临时存储
+     8 00000138 4572726F720A                outputerror: db "Error",10; 输出错误信息且换行
+     9 0000013E 0000000000000000            dest: dq 0
+    10 00000146 0000000000000000            remain: dq 0
+    11 0000014E 0000000000000000-           outcome: times 120 dq 0;输出结果(未颠倒)
+    11 0000014E <rep 78h>          
+    12 0000050E 0000000000000000-           outcomereverse: times 120 dq 0;输出结果
+    12 0000050E <rep 78h>          
+    13 000008CE 0000000000000000            outlen: dq 0;
+    14                                  section .bss
+    15                                  
+    16                                  
+    17                                  section .text
+    18                                      global main
+    19                                      global _start
+    20                                  
+    21                                  main:
+    22                                  ;_start:
+    23                                      ONCE:
+    24 00000000 48BD-                       mov rbp, inputnum; 将inputnum传参给rbp
+    24 00000002 [0000000000000000] 
+    25 0000000A E8A0000000                  call read_num; 
+    26 0000000F 48891C25[18010000]          mov qword[numlen], rbx;返回输入数字的长度
+    27 00000017 E806010000                  call read_base
+    28 0000001C E87A010000                  call change
+    29 00000021 E864020000                  call print_outcome
+    30 00000026 E851000000                  call putenter
+    31 0000002B EBD3                        jmp ONCE
+    32 0000002D E8D8020000                  call exit
+    33                                  
+    34                                  
+    35                                  getchar:; 读取单个字符
+    36 00000032 B800000000                  mov rax, 0
+    37 00000037 BF00000000                  mov rdi, 0
+    38 0000003C 48BE-                       mov rsi, tmp
+    38 0000003E [3001000000000000] 
+    39 00000046 BA01000000                  mov rdx, 1
+    40 0000004B 0F05                        syscall
+    41 0000004D 4883F801                    cmp rax, 1
+    42 00000051 740C                        je notEOF
+    43 00000053 48C70425[30010000]-         mov qword [tmp], -1
+    43 0000005B FFFFFFFF           
+    44                                      notEOF:
+    45 0000005F C3                          ret
+    46                                  
+    47                                  putchar:; 输出单个字符
+    48 00000060 B801000000                  mov rax, 1
+    49 00000065 BF01000000                  mov rdi, 1
+    50 0000006A 48BE-                       mov rsi, tmp
+    50 0000006C [3001000000000000] 
+    51 00000074 BA01000000                  mov rdx, 1
+    52 00000079 0F05                        syscall
+    53 0000007B C3                          ret
+    54                                  
+    55                                  putenter:; 输出回车
+    56 0000007C 48C70425[30010000]-         mov qword [tmp], 10
+    56 00000084 0A000000           
+    57 00000088 E8D3FFFFFF                  call putchar
+    58 0000008D C3                          ret
+    59                                  
+    60                                  puterror:; 输出错误
+    61 0000008E B801000000                  mov rax, 1
+    62 00000093 BF01000000                  mov rdi, 1
+    63 00000098 48BE-                       mov rsi, outputerror
+    63 0000009A [3801000000000000] 
+    64 000000A2 BA06000000                  mov rdx, 6
+    65 000000A7 0F05                        syscall
+    66 000000A9 E85C020000                  call exit
+    67 000000AE C3                          ret
+    68                                  
+    69                                  read_num:
+    70 000000AF BB00000000                  mov rbx, 0; 作为数组的下标
+    71                                      READ1:
+    72 000000B4 E879FFFFFF                      call getchar
+    73 000000B9 48833C25[30010000]-             cmp qword[tmp], '0'; 如果小于‘0’，则结束循环
+    73 000000C1 30                 
+    74 000000C2 7C26                                jl READ_END1
+    75 000000C4 48833C25[30010000]-             cmp qword[tmp], '9'; 如果大于‘9’，则结束循环
+    75 000000CC 39                 
+    76 000000CD 7F1B                                jg READ_END1
+    77 000000CF 48832C25[30010000]-             sub qword[tmp], '0'; 将ascii码转换成数字
+    77 000000D7 30                 
+    78 000000D8 4C8B1C25[30010000]              mov r11, qword[tmp]
+    79 000000E0 4C895CDD00                      mov qword[rbp+rbx*8], r11; 存进数组
+    80 000000E5 48FFC3                          inc rbx; 数组下标加一
+    81 000000E8 EBCA                            jmp READ1
+    82                                      READ_END1:
+    83 000000EA 48833C25[30010000]-             cmp qword[tmp], 'q'; 输入q退出程序
+    83 000000F2 71                 
+    84 000000F3 0F8411020000                        je exit
+    85 000000F9 48833C25[30010000]-             cmp qword[tmp], 10; 换行则正常退出 
+    85 00000101 0A                 
+    86 00000102 741D                                je COMMOM_END1
+    87 00000104 48833C25[30010000]-             cmp qword[tmp], 13; 回车则正常退出
+    87 0000010C 0D                 
+    88 0000010D 7412                                je COMMOM_END1
+    89 0000010F 48833C25[30010000]-             cmp qword[tmp], 32; 空格则正常退出
+    89 00000117 20                 
+    90 00000118 7407                                je COMMOM_END1
+    91 0000011A EB00                            jmp ERROR_END1; 遇到其他字符则错误退出
+    92 0000011C E86DFFFFFF                  ERROR_END1: call puterror
+    93                                      COMMOM_END1:
+    94 00000121 C3                          ret
+    95                                  
+    96                                  read_base:; 读取进制
+    97                                      READ2:
+    98 00000122 E80BFFFFFF                      call getchar
+    99 00000127 48833C25[30010000]-             cmp qword[tmp], 'b'
+    99 0000012F 62                 
+   100 00000130 7418                                je BASE2
+   101 00000132 48833C25[30010000]-             cmp qword[tmp], 'o'
+   101 0000013A 6F                 
+   102 0000013B 7426                                je BASE8
+   103 0000013D 48833C25[30010000]-             cmp qword[tmp], 'h'
+   103 00000145 68                 
+   104 00000146 7434                                je BASE16
+   105 00000148 EB4B                            jmp ERROR_END2
+   106                                      BASE2:
+   107 0000014A 48C70425[20010000]-             mov qword[inputbase], 2
+   107 00000152 02000000           
+   108 00000156 48C70425[28010000]-             mov qword[outputbase], 'b'
+   108 0000015E 62000000           
+   109                                          ; mov byte[outcome],0
+   110                                          ; mov byte[outcome+1],'b'
+   111                                          ; add qword[outlen],2
+   112 00000162 C3                              ret
+   113                                      BASE8:
+   114 00000163 48C70425[20010000]-             mov qword[inputbase], 8
+   114 0000016B 08000000           
+   115 0000016F 48C70425[28010000]-             mov qword[outputbase], 'o'
+   115 00000177 6F000000           
+   116                                          ; mov byte[outcome],0
+   117                                          ; mov byte[outcome+1],'o'
+   118                                          ; add qword[outlen],2
+   119 0000017B C3                              ret
+   120                                      BASE16:
+   121 0000017C 48C70425[20010000]-             mov qword[inputbase], 16
+   121 00000184 10000000           
+   122 00000188 48C70425[28010000]-             mov qword[outputbase], 'x'
+   122 00000190 78000000           
+   123                                          ; mov byte[outcome],0
+   124                                          ; mov byte[outcome+1],'x'
+   125                                          ; add qword[outlen],2
+   126 00000194 C3                              ret
+   127 00000195 E8F4FEFFFF                  ERROR_END2: call puterror
+   128 0000019A C3                          ret
+   129                                  
+   130                                  change:
+   131 0000019B 48BD-                       mov rbp, inputnum; 传参给rbp
+   131 0000019D [0000000000000000] 
+   132 000001A5 BB00000000                  mov rbx, 0; 输入数字的计数器
+   133 000001AA B900000000                  mov rcx, 0; 输出数字的计数器
+   134 000001AF 41BA00000000                mov r10, 0; 检查全零的寄存器
+   135                                      CHECKALLZERO:
+   136 000001B5 4C3B1425[18010000]              cmp r10, qword[numlen]
+   137 000001BD 0F848C000000                        je REVERSE
+   138 000001C3 4A837CD50000                    cmp qword[rbp+r10*8], 0
+   139 000001C9 7505                                jne CHANGE
+   140 000001CB 49FFC2                          inc r10; 检查全零寄存器递增
+   141 000001CE EBE5                            jmp CHECKALLZERO
+   142                                      CHANGE:
+   143 000001D0 41BA00000000                    mov r10, 0; 全零寄存器归零
+   144 000001D6 483B1C25[18010000]              cmp rbx, qword[numlen]
+   145 000001DE 7446                                je ADDCHAR
+   146 000001E0 41B80A000000                    mov r8, 10
+   147 000001E6 488B0425[46010000]              mov rax, qword[remain]; 被乘数存在rax中
+   148 000001EE 49F7E0                          mul r8; 只显示乘数即可
+   149 000001F1 4989C1                          mov r9, rax; 结果存储在rax转移到r9
+   150 000001F4 4C034CDD00                      add r9, qword[rbp+rbx*8]
+   151 000001F9 4C890C25[3E010000]              mov qword[dest],r9
+   152 00000201 4C89C8                          mov rax, r9; 将被除数存在rax中
+   153 00000204 4C8B0425[20010000]              mov r8, qword[inputbase]
+   154 0000020C BA00000000                      mov rdx, 0; 将rdx清零
+   155 00000211 49F7F0                          div r8; 只显示除数
+   156 00000214 48891425[46010000]              mov qword[remain], rdx; 余数存放在rdx中
+   157 0000021C 488944DD00                      mov qword[rbp+rbx*8], rax; 除数放在rax中
+   158 00000221 48FFC3                          inc rbx
+   159 00000224 EBAA                            jmp CHANGE
+   160                                      ADDCHAR:; 添加字符
+   161 00000226 BB00000000                      mov rbx, 0;
+   162 0000022B 4C8B0C25[46010000]              mov r9, qword[remain]
+   163 00000233 4C890CCD[4E010000]              mov qword[outcome+rcx*8],r9
+   164 0000023B 48FFC1                          inc rcx
+   165 0000023E 48C70425[46010000]-             mov qword[remain], 0
+   165 00000246 00000000           
+   166 0000024A E966FFFFFF                      jmp CHECKALLZERO
+   167                                      REVERSE:; 将结果反转
+   168 0000024F 48890C25[CE080000]              mov qword[outlen], rcx; 将输出字符的长度储存
+   169 00000257 488B1C25[CE080000]              mov rbx, qword[outlen]
+   170 0000025F 48FFCB                          dec rbx
+   171 00000262 B900000000                      mov rcx, 0
+   172                                          loop1:
+   173 00000267 4C8B1CDD[4E010000]                  mov r11,qword[outcome+rbx*8]
+   174 0000026F 4C891CCD[0E050000]                  mov qword[outcomereverse+rcx*8],r11
+   175 00000277 48FFCB                              dec rbx
+   176 0000027A 48FFC1                              inc rcx
+   177 0000027D 483B0C25[CE080000]                  cmp rcx, qword[outlen]
+   178 00000285 7CE0                                    jl loop1
+   179 00000287 EB00                                jmp CHANGEEND
+   180                                      CHANGEEND:
+   181 00000289 C3                          ret
+   182                                  
+   183                                  print_outcome:
+   184 0000028A BB00000000                  mov rbx, 0
+   185 0000028F 48BD-                       mov rbp, outcomereverse
+   185 00000291 [0E05000000000000] 
+   186 00000299 E845000000                  call print_base
+   187                                      PRINT:
+   188 0000029E 4C8B5CDD00                      mov r11, qword[rbp+rbx*8]
+   189 000002A3 4C891C25[30010000]              mov qword[tmp],r11
+   190 000002AB E813000000                      call changebit
+   191 000002B0 E8ABFDFFFF                      call putchar
+   192 000002B5 48FFC3                          inc rbx
+   193 000002B8 483B1C25[CE080000]              cmp rbx,qword[outlen] 
+   194 000002C0 7CDC                                jl PRINT
+   195 000002C2 C3                          ret
+   196                                  
+   197                                  changebit:
+   198 000002C3 48833C25[30010000]-         cmp qword[tmp],9
+   198 000002CB 09                 
+   199 000002CC 7E0B                            jle CHANGE1
+   200 000002CE 48830425[30010000]-         add qword[tmp],87;a是97
+   200 000002D6 57                 
+   201 000002D7 EB09                        jmp CHANGEBITEND
+   202                                      CHANGE1: 
+   203 000002D9 48830425[30010000]-             add qword[tmp],'0'
+   203 000002E1 30                 
+   204                                      CHANGEBITEND:
+   205 000002E2 C3                          ret
+   206                                  
+   207                                  print_base:
+   208 000002E3 48C70425[30010000]-         mov qword[tmp],'0'
+   208 000002EB 30000000           
+   209 000002EF E86CFDFFFF                  call putchar
+   210 000002F4 4C8B1C25[28010000]          mov r11,qword[outputbase]
+   211 000002FC 4C891C25[30010000]          mov qword[tmp],r11
+   212 00000304 E857FDFFFF                  call putchar
+   213 00000309 C3                          ret
+   214                                  
+   215                                  exit:
+   216 0000030A B83C000000                  mov rax, 60
+   217 0000030F BF00000000                  mov rdi, 0
+   218 00000314 0F05                        syscall
+   219 00000316 C3                          ret
+   220                                      
